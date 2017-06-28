@@ -74,7 +74,7 @@ func (self *KubeletClient) postRequestAndGetValue(client *http.Client, req *http
 		return fmt.Errorf("failed to read response body - %v", err)
 	}
 
-	glog.V(2).Infof("KubeletClient.postRequestAndGetValue: response=%q", string(body))
+	glog.V(2).Infof("KubeletClient.postRequestAndGetValue: response=%v", string(body))
 
 	if response.StatusCode == http.StatusNotFound {
 		return &ErrNotFound{req.URL.String()}
@@ -188,7 +188,7 @@ func (self *KubeletClient) getAllContainers(url string, start, end time.Time) ([
 		return nil, fmt.Errorf("failed to get all container stats from Kubelet URL %q: %v", url, err)
 	}
 
-	glog.V(2).Infof("KubeletClient.getAllContainers: containers=%v", containers)
+	glog.V(2).Infof("KubeletClient.getAllContainers: containers=%+v", containers)
 
 	result := make([]cadvisor.ContainerInfo, 0, len(containers))
 	for _, containerInfo := range containers {

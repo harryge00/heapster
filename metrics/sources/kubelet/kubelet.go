@@ -248,7 +248,7 @@ func (this *kubeletMetricsSource) ScrapeMetrics(start, end time.Time) *DataBatch
 	}
 	keys := make(map[string]bool)
 	for _, c := range containers {
-		glog.V(2).Infof("container：%v", c)
+		glog.V(2).Infof("container：%+v", c)
 		name, metrics := this.decodeMetrics(&c)
 		if name == "" || metrics == nil {
 			continue
