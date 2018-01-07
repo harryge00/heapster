@@ -67,6 +67,12 @@ type clusterMetricsFetcher interface {
 	rcMetrics(request *restful.Request, response *restful.Response)
 	namespaceRcPodList(request *restful.Request, response *restful.Response)
 
+	// Added by haoyuan
+	namespaceStatefulsetList(request *restful.Request, response *restful.Response)
+	availableStatefulsetMetrics(request *restful.Request, response *restful.Response)
+	StatefulsetMetrics(request *restful.Request, response *restful.Response)
+	namespaceStatefulsetPodList(request *restful.Request, response *restful.Response)
+
 	availablePodContainerMetrics(request *restful.Request, response *restful.Response)
 	podContainerMetrics(request *restful.Request, response *restful.Response)
 
@@ -481,6 +487,34 @@ func (a *Api) namespaceRcPodList(request *restful.Request, response *restful.Res
 }
 
 // Added by luobingli
+
+// Added by haoyuan
+
+func (a *Api) namespaceStatefulsetList(request *restful.Request, response *restful.Response) {
+	glog.Info("Not implementted")
+}
+
+// availableMetrics returns a list of available statefulset metric names.
+func (a *Api) availableStatefulsetMetrics(request *restful.Request, response *restful.Response) {
+	a.processMetricNamesRequest(
+		core.RcKey(request.PathParameter("namespace-name"),
+			request.PathParameter("rc-name")), response)
+}
+
+// podMetrics returns a metric timeseries for a metric of the Pod entity.
+func (a *Api) StatefulsetMetrics(request *restful.Request, response *restful.Response) {
+	a.processMetricRequest(
+		core.RcKey(request.PathParameter("namespace-name"),
+			request.PathParameter("rc-name")),
+		request, response)
+}
+
+func (a *Api) namespaceStatefulsetPodList(request *restful.Request, response *restful.Response) {
+	response.WriteEntity(a.metricSink.GetPodsForRcFromNamespace(request.PathParameter("namespace-name"), request.PathParameter("rc-name")))
+}
+
+// Added by haoyuan
+
 
 // podMetrics returns a metric timeseries for a metric of the Pod entity.
 func (a *Api) podMetrics(request *restful.Request, response *restful.Response) {

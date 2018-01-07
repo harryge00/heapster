@@ -327,6 +327,22 @@ func (this *MetricSink) GetPodsForRcFromNamespace(namespace, rc string) []string
 
 // Added by luobingli
 
+
+// Added by haoyuan
+func (this *MetricSink) GetPodsForStatefulsetFromNamespace(namespace, ss string) []string {
+	return this.getAllNames(
+		func(ms *core.MetricSet) bool {
+			return ms.Labels[core.LabelMetricSetType.Key] == core.MetricSetTypePod &&
+				ms.Labels[core.LabelNamespaceName.Key] == namespace &&
+				ms.Labels[core.LabelSsName.Key] == ss
+		},
+		func(key string, ms *core.MetricSet) string {
+			return ms.Labels[core.LabelPodName.Key]
+		})
+}
+// Added by haoyuan
+
+
 func (this *MetricSink) GetContainersForPodFromNamespace(namespace, pod string) []string {
 	return this.getAllNames(
 		func(ms *core.MetricSet) bool {

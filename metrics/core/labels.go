@@ -65,6 +65,25 @@ var (
 	}
 	// Added by luobingli
 
+	// Added by haoyuan
+	LabelSsId = LabelDescriptor{
+		Key:         "ss_id",
+		Description: "The unique ID of the ss",
+	}
+	LabelSsName = LabelDescriptor{
+		Key:         "ss_name",
+		Description: "The name of the ss",
+	}
+	LabelSsNamespace = LabelDescriptor{
+		Key:         "ss_namespace",
+		Description: "The namespace of the ss",
+	}
+	LabelSsNamespaceUID = LabelDescriptor{
+		Key:         "ss_namespace_id",
+		Description: "The UID of namespace of the ss",
+	}
+	// Added by haoyuan
+
 	LabelNamespaceName = LabelDescriptor{
 		Key:         "namespace_name",
 		Description: "The name of the namespace",
