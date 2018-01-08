@@ -23,11 +23,12 @@ import (
 
 	"k8s.io/heapster/metrics/core"
 	kube_api "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/client/listers/apps/v1beta1"
 	"k8s.io/kubernetes/pkg/client/cache"
 )
 
 type SsBasedEnricher struct {
-	ssLister  *cache.StoreToReplicationControllerLister
+	ssLister  *v1beta1.StatefulSetLister
 	podLister *cache.StoreToPodLister
 }
 
@@ -130,7 +131,7 @@ func addSsPodInfo(key string, podMs *core.MetricSet,
 	}
 }
 
-func NewSsBasedEnricher(ssLister *cache.StoreToReplicationControllerLister, podLister *cache.StoreToPodLister) (*SsBasedEnricher, error) {
+func NewSsBasedEnricher(ssLister *v1beta1.StatefulSetLister, podLister *cache.StoreToPodLister) (*SsBasedEnricher, error) {
 	return &SsBasedEnricher{
 		ssLister:  ssLister,
 		podLister: podLister,
