@@ -32,6 +32,10 @@ var (
 	MetricSetTypeRc = "rc"
 	// Added by Luobingli
 
+	// Added by Luobingli
+	MetricSetTypeSs = "ss"
+	// Added by Luobingli
+
 	LabelPodId = LabelDescriptor{
 		Key:         "pod_id",
 		Description: "The unique ID of the pod",

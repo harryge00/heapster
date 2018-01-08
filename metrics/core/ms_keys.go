@@ -38,6 +38,13 @@ func RcKey(namespace, rcName string) string {
 
 // Added by luobingli
 
+// Added by haoyuan
+func SsKey(namespace, ssName string) string {
+	return fmt.Sprintf("namespace:%s/statefulset:%s", namespace, ssName)
+}
+
+// Added by haoyuan
+
 func NamespaceKey(namespace string) string {
 	return fmt.Sprintf("namespace:%s", namespace)
 }
