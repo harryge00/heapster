@@ -23,12 +23,14 @@ import (
 
 	"k8s.io/heapster/metrics/core"
 	kube_api "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/listers/apps/v1beta1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	listers "k8s.io/kubernetes/pkg/client/listers/apps/v1beta1"
+	"k8s.io/kubernetes/pkg/apis/apps/v1beta1"
 	"k8s.io/kubernetes/pkg/client/cache"
 )
 
 type SsBasedEnricher struct {
-	ssLister  *v1beta1.StatefulSetLister
+	ssLister  *listers.StatefulSetLister
 	podLister *cache.StoreToPodLister
 }
 
@@ -63,9 +65,10 @@ func (this *SsBasedEnricher) Process(batch *core.DataBatch) (*core.DataBatch, er
 	return batch, nil
 }
 
-func (this *SsBasedEnricher) getPodControllers(pod *kube_api.Pod) ([]kube_api.ReplicationController, error) {
+func (this *SsBasedEnricher) getPodControllers(pod *kube_api.Pod) ([]*v1beta1.StatefulSet, error) {
 	var sss []kube_api.ReplicationController
-	sss, err := this.ssLister.GetPodControllers(pod)
+	listOpts := meta_v1.ListOptions{}
+	sss, err := this.ssLister.StatefulSets(pod.Namespace).List(&listOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +102,7 @@ func (this *SsBasedEnricher) getPod(namespace, name string) (*kube_api.Pod, erro
 }
 
 func addSsPodInfo(key string, podMs *core.MetricSet,
-	ss *kube_api.ReplicationController, pod *kube_api.Pod,
+	ss *v1beta1.StatefulSet, pod *kube_api.Pod,
 	batch *core.DataBatch, newMs map[string]*core.MetricSet) {
 	if key == core.PodKey(pod.Namespace, pod.Name) {
 		if _, ok := podMs.Labels[core.LabelSsName.Key]; !ok {
@@ -131,7 +134,7 @@ func addSsPodInfo(key string, podMs *core.MetricSet,
 	}
 }
 
-func NewSsBasedEnricher(ssLister *v1beta1.StatefulSetLister, podLister *cache.StoreToPodLister) (*SsBasedEnricher, error) {
+func NewSsBasedEnricher(ssLister *listers.StatefulSetLister, podLister *cache.StoreToPodLister) (*SsBasedEnricher, error) {
 	return &SsBasedEnricher{
 		ssLister:  ssLister,
 		podLister: podLister,
