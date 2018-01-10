@@ -23,6 +23,18 @@ import (
 // anytime. It it only guaranteed that it is unique for the unique combination of
 // passed parameters.
 
+// Added by luobingli
+func RcKey(namespace, rcName string) string {
+	return fmt.Sprintf("namespace:%s/replicationcontroller:%s", namespace, rcName)
+}
+// Added by luobingli
+
+// Added by haoyuan
+func SsKey(namespace, ssName string) string {
+	return fmt.Sprintf("namespace:%s/statefulset:%s", namespace, ssName)
+}
+// Added by haoyuan
+
 func PodContainerKey(namespace, podName, containerName string) string {
 	return fmt.Sprintf("namespace:%s/pod:%s/container:%s", namespace, podName, containerName)
 }

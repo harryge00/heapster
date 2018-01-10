@@ -248,6 +248,34 @@ func createDataProcessorsOrDie(kubernetesUrl *url.URL, podLister v1listers.PodLi
 	}
 	dataProcessors = append(dataProcessors, namespaceBasedEnricher)
 
+	// Added by luobingli
+	rcLister, err := getRcLister(kubeClient)
+	if err != nil {
+		glog.Fatalf("Failed to create nodeLister: %v", err)
+	}
+
+	// Added by luobingli
+	rcBasedEnricher, err := processors.NewRcBasedEnricher(rcLister, podLister)
+	if err != nil {
+		glog.Fatalf("Failed to create RcBasedEnricher: %v", err)
+	}
+	dataProcessors = append(dataProcessors, rcBasedEnricher)
+
+	// then aggregators
+	dataProcessors = append(dataProcessors,
+		processors.NewPodAggregator(),
+		&processors.NamespaceAggregator{
+			MetricsToAggregate: metricsToAggregate,
+		},
+		&processors.NodeAggregator{
+			MetricsToAggregate: metricsToAggregateForNode,
+		},
+		&processors.ClusterAggregator{
+			MetricsToAggregate: metricsToAggregate,
+		})
+
+	dataProcessors = append(dataProcessors, processors.NewRcAggregator())
+
 	// aggregators
 	metricsToAggregate := []string{
 		core.MetricCpuUsageRate.Name,
@@ -323,6 +351,15 @@ func getKubernetesAddress(args flags.Uris) (*url.URL, error) {
 
 func getPodLister(kubeClient *kube_client.Clientset) (v1listers.PodLister, error) {
 	lw := cache.NewListWatchFromClient(kubeClient.Core().RESTClient(), "pods", kube_api.NamespaceAll, fields.Everything())
+	store := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	podLister := v1listers.NewPodLister(store)
+	reflector := cache.NewReflector(lw, &kube_api.Pod{}, store, time.Hour)
+	reflector.Run()
+	return podLister, nil
+}
+
+func getRcLister(kubeClient *kube_client.Clientset) (v1listers.ReplicationControllerLister, error) {
+	lw := cache.NewListWatchFromClient(kubeClient.Core().RESTClient(), "repli", kube_api.NamespaceAll, fields.Everything())
 	store := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	podLister := v1listers.NewPodLister(store)
 	reflector := cache.NewReflector(lw, &kube_api.Pod{}, store, time.Hour)
