@@ -17,9 +17,9 @@ package processors
 import (
 	"github.com/golang/glog"
 
-	"k8s.io/heapster/metrics/core"
-	"k8s.io/client-go/pkg/api/v1"
 	v1listers "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/heapster/metrics/core"
 )
 
 type RcBasedEnricher struct {

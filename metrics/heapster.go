@@ -88,8 +88,8 @@ func main() {
 	sourceManager := createSourceManagerOrDie(opt.Sources)
 	sinkManager, metricSink, historicalSource := createAndInitSinksOrDie(opt.Sinks, opt.HistoricalSource, opt.SinkExportDataTimeout, opt.DisableMetricSink)
 
-	podLister, nodeLister := getListersOrDie(kubernetesUrl)
-	dataProcessors := createDataProcessorsOrDie(kubernetesUrl, podLister, labelCopier)
+	podLister, nodeLister, rcLister := getListersOrDie(kubernetesUrl)
+	dataProcessors := createDataProcessorsOrDie(kubernetesUrl, podLister, rcLister, labelCopier)
 
 	man, err := manager.NewManager(sourceManager, dataProcessors, sinkManager,
 		opt.MetricResolution, manager.DefaultScrapeOffset, manager.DefaultMaxParallelism)
@@ -208,18 +208,27 @@ func createAndInitSinksOrDie(sinkAddresses flags.Uris, historicalSource string, 
 	return sinkManager, metricSink, histSource
 }
 
-func getListersOrDie(kubernetesUrl *url.URL) (v1listers.PodLister, v1listers.NodeLister) {
+func getListersOrDie(kubernetesUrl *url.URL) (v1listers.PodLister, v1listers.NodeLister, v1listers.ReplicationControllerLister) {
 	kubeClient := createKubeClientOrDie(kubernetesUrl)
 
 	podLister, err := getPodLister(kubeClient)
 	if err != nil {
 		glog.Fatalf("Failed to create podLister: %v", err)
 	}
+
+	// Added by haoyuan
+	rcLister, err := getRcLister(kubeClient)
+	if err != nil {
+		glog.Fatalf("Failed to create rcLister: %v", err)
+	}
+	// Added by haoyuan
+
 	nodeLister, _, err := util.GetNodeLister(kubeClient)
 	if err != nil {
 		glog.Fatalf("Failed to create nodeLister: %v", err)
 	}
-	return podLister, nodeLister
+
+	return podLister, nodeLister, rcLister
 }
 
 func createKubeClientOrDie(kubernetesUrl *url.URL) *kube_client.Clientset {
@@ -230,7 +239,7 @@ func createKubeClientOrDie(kubernetesUrl *url.URL) *kube_client.Clientset {
 	return kube_client.NewForConfigOrDie(kubeConfig)
 }
 
-func createDataProcessorsOrDie(kubernetesUrl *url.URL, podLister v1listers.PodLister, labelCopier *util.LabelCopier) []core.DataProcessor {
+func createDataProcessorsOrDie(kubernetesUrl *url.URL, podLister v1listers.PodLister, rcLister v1listers.ReplicationControllerLister, labelCopier *util.LabelCopier) []core.DataProcessor {
 	dataProcessors := []core.DataProcessor{
 		// Convert cumulative to rate
 		processors.NewRateCalculator(core.RateMetricsMapping),
@@ -248,33 +257,13 @@ func createDataProcessorsOrDie(kubernetesUrl *url.URL, podLister v1listers.PodLi
 	}
 	dataProcessors = append(dataProcessors, namespaceBasedEnricher)
 
-	// Added by luobingli
-	rcLister, err := getRcLister(kubeClient)
-	if err != nil {
-		glog.Fatalf("Failed to create nodeLister: %v", err)
-	}
-
-	// Added by luobingli
+	// Added by haoyuan
 	rcBasedEnricher, err := processors.NewRcBasedEnricher(rcLister, podLister)
 	if err != nil {
 		glog.Fatalf("Failed to create RcBasedEnricher: %v", err)
 	}
 	dataProcessors = append(dataProcessors, rcBasedEnricher)
-
-	// then aggregators
-	dataProcessors = append(dataProcessors,
-		processors.NewPodAggregator(),
-		&processors.NamespaceAggregator{
-			MetricsToAggregate: metricsToAggregate,
-		},
-		&processors.NodeAggregator{
-			MetricsToAggregate: metricsToAggregateForNode,
-		},
-		&processors.ClusterAggregator{
-			MetricsToAggregate: metricsToAggregate,
-		})
-
-	dataProcessors = append(dataProcessors, processors.NewRcAggregator())
+	// Added by haoyuan
 
 	// aggregators
 	metricsToAggregate := []string{
@@ -295,6 +284,7 @@ func createDataProcessorsOrDie(kubernetesUrl *url.URL, podLister v1listers.PodLi
 
 	dataProcessors = append(dataProcessors,
 		processors.NewPodAggregator(),
+		processors.NewRcAggregator(),
 		&processors.NamespaceAggregator{
 			MetricsToAggregate: metricsToAggregate,
 		},
@@ -359,12 +349,12 @@ func getPodLister(kubeClient *kube_client.Clientset) (v1listers.PodLister, error
 }
 
 func getRcLister(kubeClient *kube_client.Clientset) (v1listers.ReplicationControllerLister, error) {
-	lw := cache.NewListWatchFromClient(kubeClient.Core().RESTClient(), "repli", kube_api.NamespaceAll, fields.Everything())
+	lw := cache.NewListWatchFromClient(kubeClient.Core().RESTClient(), "replicationcontroller", kube_api.NamespaceAll, fields.Everything())
 	store := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
-	podLister := v1listers.NewPodLister(store)
+	rcLister := v1listers.NewReplicationControllerLister(store)
 	reflector := cache.NewReflector(lw, &kube_api.Pod{}, store, time.Hour)
 	reflector.Run()
-	return podLister, nil
+	return rcLister, nil
 }
 
 func validateFlags(opt *options.HeapsterRunOptions) error {
