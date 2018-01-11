@@ -17,16 +17,16 @@ package processors
 import (
 	"github.com/golang/glog"
 
+	apps "k8s.io/client-go/pkg/apis/apps/v1beta1"
+	v1beta1listers "k8s.io/client-go/listers/apps/v1beta1"
 	v1listers "k8s.io/client-go/listers/core/v1"
-	v2listers "k8s.io/client-go/listers/apps/v1beta2"
-	apps "k8s.io/api/apps/v1beta2"
 
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/heapster/metrics/core"
 )
 
 type SsBasedEnricher struct {
-	ssLister  v2listers.StatefulSetLister
+	ssLister  v1beta1listers.StatefulSetLister
 	podLister v1listers.PodLister
 }
 
@@ -93,7 +93,7 @@ func addSsPodInfo(key string, podMs *core.MetricSet,
 	}
 }
 
-func NewSsBasedEnricher(ssLister v2listers.StatefulSetLister, podLister v1listers.PodLister) (*SsBasedEnricher, error) {
+func NewSsBasedEnricher(ssLister v1beta1listers.StatefulSetLister, podLister v1listers.PodLister) (*SsBasedEnricher, error) {
 	return &SsBasedEnricher{
 		ssLister:  ssLister,
 		podLister: podLister,
