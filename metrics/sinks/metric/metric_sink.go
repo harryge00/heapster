@@ -315,6 +315,55 @@ func (this *MetricSink) GetSystemContainersFromNode(node string) []string {
 		})
 }
 
+// Added by haoyuan
+func (this *MetricSink) GetRcsFromNamespace(namespace string) []string {
+	return this.getAllNames(
+		func(ms *core.MetricSet) bool {
+			return ms.Labels[core.LabelMetricSetType.Key] == core.MetricSetTypeRc &&
+				ms.Labels[core.LabelNamespaceName.Key] == namespace
+		},
+		func(key string, ms *core.MetricSet) string {
+			return ms.Labels[core.LabelRcName.Key]
+		})
+}
+
+func (this *MetricSink) GetPodsForRcFromNamespace(namespace, rc string) []string {
+	return this.getAllNames(
+		func(ms *core.MetricSet) bool {
+			return ms.Labels[core.LabelMetricSetType.Key] == core.MetricSetTypePod &&
+				ms.Labels[core.LabelNamespaceName.Key] == namespace &&
+				ms.Labels[core.LabelRcName.Key] == rc
+		},
+		func(key string, ms *core.MetricSet) string {
+			return ms.Labels[core.LabelPodName.Key]
+		})
+}
+
+func (this *MetricSink) GetStatefulsetsFromNamespace(namespace string) []string {
+	return this.getAllNames(
+		func(ms *core.MetricSet) bool {
+			return ms.Labels[core.LabelMetricSetType.Key] == core.MetricSetTypeSs &&
+				ms.Labels[core.LabelNamespaceName.Key] == namespace
+		},
+		func(key string, ms *core.MetricSet) string {
+			return ms.Labels[core.LabelSsName.Key]
+		})
+}
+
+func (this *MetricSink) GetPodsForStatefulsetFromNamespace(namespace, ss string) []string {
+	return this.getAllNames(
+		func(ms *core.MetricSet) bool {
+			return ms.Labels[core.LabelMetricSetType.Key] == core.MetricSetTypePod &&
+				ms.Labels[core.LabelNamespaceName.Key] == namespace &&
+				ms.Labels[core.LabelSsName.Key] == ss
+		},
+		func(key string, ms *core.MetricSet) string {
+			return ms.Labels[core.LabelPodName.Key]
+		})
+}
+
+// Added by haoyuan
+
 func popOld(storage []*core.DataBatch, cutoffTime time.Time) []*core.DataBatch {
 	result := make([]*core.DataBatch, 0)
 	for _, batch := range storage {
