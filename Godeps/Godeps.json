@@ -1260,6 +1260,11 @@
 			"Rev": "6500775c58c43486978291879ac9e1b0e9fc953f"
 		},
 		{
+			"ImportPath": "k8s.io/client-go/listers/apps/v1beta1",
+			"Comment": "v2.0.0-alpha.0-75-g6500775c",
+			"Rev": "6500775c58c43486978291879ac9e1b0e9fc953f"
+		},
+		{
 			"ImportPath": "k8s.io/client-go/pkg/api",
 			"Comment": "v2.0.0-alpha.0-75-g6500775c",
 			"Rev": "6500775c58c43486978291879ac9e1b0e9fc953f"

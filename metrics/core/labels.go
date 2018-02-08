@@ -28,6 +28,14 @@ var (
 	MetricSetTypeNode            = "node"
 	MetricSetTypeCluster         = "cluster"
 
+	// Added by Luobingli
+	MetricSetTypeRc = "rc"
+	// Added by Luobingli
+
+	// Added by Luobingli
+	MetricSetTypeSs = "ss"
+	// Added by Luobingli
+
 	LabelPodId = LabelDescriptor{
 		Key:         "pod_id",
 		Description: "The unique ID of the pod",
@@ -105,6 +113,44 @@ var (
 		Key:         "accelerator_id",
 		Description: "ID of the accelerator",
 	}
+
+	// Added by luobingli
+	LabelRcId = LabelDescriptor{
+		Key:         "rc_id",
+		Description: "The unique ID of the rc",
+	}
+	LabelRcName = LabelDescriptor{
+		Key:         "rc_name",
+		Description: "The name of the rc",
+	}
+	LabelRcNamespace = LabelDescriptor{
+		Key:         "rc_namespace",
+		Description: "The namespace of the rc",
+	}
+	LabelRcNamespaceUID = LabelDescriptor{
+		Key:         "rc_namespace_id",
+		Description: "The UID of namespace of the rc",
+	}
+	// Added by luobingli
+
+	// Added by haoyuan
+	LabelSsId = LabelDescriptor{
+		Key:         "ss_id",
+		Description: "The unique ID of the ss",
+	}
+	LabelSsName = LabelDescriptor{
+		Key:         "ss_name",
+		Description: "The name of the ss",
+	}
+	LabelSsNamespace = LabelDescriptor{
+		Key:         "ss_namespace",
+		Description: "The namespace of the ss",
+	}
+	LabelSsNamespaceUID = LabelDescriptor{
+		Key:         "ss_namespace_id",
+		Description: "The UID of namespace of the ss",
+	}
+	// Added by haoyuan
 )
 
 type LabelDescriptor struct {

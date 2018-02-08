@@ -38,8 +38,10 @@ import (
 	"k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/apiserver/pkg/util/logs"
 	kube_client "k8s.io/client-go/kubernetes"
+	betalisters "k8s.io/client-go/listers/apps/v1beta1"
 	v1listers "k8s.io/client-go/listers/core/v1"
 	kube_api "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/apis/apps/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/heapster/common/flags"
 	kube_config "k8s.io/heapster/common/kubernetes"
@@ -76,7 +78,7 @@ func main() {
 
 	setMaxProcs(opt)
 	glog.Infof(strings.Join(os.Args, " "))
-	glog.Infof("Heapster version %v", version.HeapsterVersion)
+	glog.Infof("Heapster version %v", version.VersionInfo())
 	if err := validateFlags(opt); err != nil {
 		glog.Fatal(err)
 	}
@@ -88,8 +90,8 @@ func main() {
 	sourceManager := createSourceManagerOrDie(opt.Sources)
 	sinkManager, metricSink, historicalSource := createAndInitSinksOrDie(opt.Sinks, opt.HistoricalSource, opt.SinkExportDataTimeout, opt.DisableMetricSink)
 
-	podLister, nodeLister := getListersOrDie(kubernetesUrl)
-	dataProcessors := createDataProcessorsOrDie(kubernetesUrl, podLister, labelCopier)
+	podLister, nodeLister, rcLister, ssLister := getListersOrDie(kubernetesUrl)
+	dataProcessors := createDataProcessorsOrDie(kubernetesUrl, podLister, rcLister, ssLister, labelCopier)
 
 	man, err := manager.NewManager(sourceManager, dataProcessors, sinkManager,
 		opt.MetricResolution, manager.DefaultScrapeOffset, manager.DefaultMaxParallelism)
@@ -208,18 +210,31 @@ func createAndInitSinksOrDie(sinkAddresses flags.Uris, historicalSource string, 
 	return sinkManager, metricSink, histSource
 }
 
-func getListersOrDie(kubernetesUrl *url.URL) (v1listers.PodLister, v1listers.NodeLister) {
+func getListersOrDie(kubernetesUrl *url.URL) (v1listers.PodLister, v1listers.NodeLister, v1listers.ReplicationControllerLister, betalisters.StatefulSetLister) {
 	kubeClient := createKubeClientOrDie(kubernetesUrl)
 
 	podLister, err := getPodLister(kubeClient)
 	if err != nil {
 		glog.Fatalf("Failed to create podLister: %v", err)
 	}
+
+	// Added by haoyuan
+	rcLister, err := getRcLister(kubeClient)
+	if err != nil {
+		glog.Fatalf("Failed to create rcLister: %v", err)
+	}
+	ssLister, err := getSsLister(kubeClient)
+	if err != nil {
+		glog.Fatalf("Failed to create ssLister: %v", err)
+	}
+	// Added by haoyuan
+
 	nodeLister, _, err := util.GetNodeLister(kubeClient)
 	if err != nil {
 		glog.Fatalf("Failed to create nodeLister: %v", err)
 	}
-	return podLister, nodeLister
+
+	return podLister, nodeLister, rcLister, ssLister
 }
 
 func createKubeClientOrDie(kubernetesUrl *url.URL) *kube_client.Clientset {
@@ -230,7 +245,7 @@ func createKubeClientOrDie(kubernetesUrl *url.URL) *kube_client.Clientset {
 	return kube_client.NewForConfigOrDie(kubeConfig)
 }
 
-func createDataProcessorsOrDie(kubernetesUrl *url.URL, podLister v1listers.PodLister, labelCopier *util.LabelCopier) []core.DataProcessor {
+func createDataProcessorsOrDie(kubernetesUrl *url.URL, podLister v1listers.PodLister, rcLister v1listers.ReplicationControllerLister, ssLister betalisters.StatefulSetLister, labelCopier *util.LabelCopier) []core.DataProcessor {
 	dataProcessors := []core.DataProcessor{
 		// Convert cumulative to rate
 		processors.NewRateCalculator(core.RateMetricsMapping),
@@ -247,6 +262,20 @@ func createDataProcessorsOrDie(kubernetesUrl *url.URL, podLister v1listers.PodLi
 		glog.Fatalf("Failed to create NamespaceBasedEnricher: %v", err)
 	}
 	dataProcessors = append(dataProcessors, namespaceBasedEnricher)
+
+	// Added by haoyuan
+	rcBasedEnricher, err := processors.NewRcBasedEnricher(rcLister, podLister)
+	if err != nil {
+		glog.Fatalf("Failed to create RcBasedEnricher: %v", err)
+	}
+	dataProcessors = append(dataProcessors, rcBasedEnricher)
+
+	ssBasedEnricher, err := processors.NewSsBasedEnricher(ssLister, podLister)
+	if err != nil {
+		glog.Fatalf("Failed to create SsBasedEnricher: %v", err)
+	}
+	dataProcessors = append(dataProcessors, ssBasedEnricher)
+	// Added by haoyuan
 
 	// aggregators
 	metricsToAggregate := []string{
@@ -267,6 +296,8 @@ func createDataProcessorsOrDie(kubernetesUrl *url.URL, podLister v1listers.PodLi
 
 	dataProcessors = append(dataProcessors,
 		processors.NewPodAggregator(),
+		processors.NewRcAggregator(),
+		processors.NewSsAggregator(),
 		&processors.NamespaceAggregator{
 			MetricsToAggregate: metricsToAggregate,
 		},
@@ -328,6 +359,24 @@ func getPodLister(kubeClient *kube_client.Clientset) (v1listers.PodLister, error
 	reflector := cache.NewReflector(lw, &kube_api.Pod{}, store, time.Hour)
 	reflector.Run()
 	return podLister, nil
+}
+
+func getRcLister(kubeClient *kube_client.Clientset) (v1listers.ReplicationControllerLister, error) {
+	lw := cache.NewListWatchFromClient(kubeClient.Core().RESTClient(), "replicationcontrollers", kube_api.NamespaceAll, fields.Everything())
+	store := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	rcLister := v1listers.NewReplicationControllerLister(store)
+	reflector := cache.NewReflector(lw, &kube_api.ReplicationController{}, store, time.Hour)
+	reflector.Run()
+	return rcLister, nil
+}
+
+func getSsLister(kubeClient *kube_client.Clientset) (betalisters.StatefulSetLister, error) {
+	lw := cache.NewListWatchFromClient(kubeClient.AppsV1beta1().RESTClient(), "statefulsets", kube_api.NamespaceAll, fields.Everything())
+	store := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	ssLister := betalisters.NewStatefulSetLister(store)
+	reflector := cache.NewReflector(lw, &v1beta1.StatefulSet{}, store, time.Hour)
+	reflector.Run()
+	return ssLister, nil
 }
 
 func validateFlags(opt *options.HeapsterRunOptions) error {
