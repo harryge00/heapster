@@ -83,6 +83,13 @@ type clusterMetricsFetcher interface {
 	namespaceStatefulsetPodList(request *restful.Request, response *restful.Response)
 	// Added by haoyuan
 
+	// Added by zhuzhen
+	namespaceJobList(request *restful.Request, response *restful.Response)
+	availableJobMetrics(request *restful.Request, response *restful.Response)
+	jobMetrics(request *restful.Request, response *restful.Response)
+	namespaceJobPodList(request *restful.Request, response *restful.Response)
+	// Added by zhuzhen
+
 	isRunningInKubernetes() bool
 }
 
@@ -259,6 +266,16 @@ func addClusterMetricsRoutes(a clusterMetricsFetcher, ws *restful.WebService) {
 			Param(ws.QueryParameter("labels", "A comma-separated list of key:values pairs to use to search for a labeled metric").DataType("string")).
 			Writes(types.MetricResult{}))
 
+		// The /namespaces/{namespace-name}/rcs/{rc-name}/pods/{pod-name}/containers endpoint
+		// returns a list of all available containers for a pod's containers.
+		ws.Route(ws.GET("/namespaces/{namespace-name}/rcs/{rc-name}/pods/{pod-name}/containers").
+			To(metrics.InstrumentRouteFunc("podContainerList", a.podContainerList)).
+			Doc("Get a list of containers for a Pod entity ").
+			Operation("podContainerList").
+			Param(ws.PathParameter("namespace-name", "The name of the namespace to lookup").DataType("string")).
+			Param(ws.PathParameter("rc-name", "The name of the rc to lookup").DataType("string")).
+			Param(ws.PathParameter("pod-name", "The name of the pod to lookup").DataType("string")))
+
 		// The /namespaces/{namespace-name}/rcs/{rc-name}/pods/{pod-name}/containers/{container-name}/metrics endpoint
 		// returns a list of all available metrics for a rc Container entity.
 		ws.Route(ws.GET("/namespaces/{namespace-name}/rcs/{rc-name}/pods/{pod-name}/containers/{container-name}/metrics").
@@ -348,7 +365,17 @@ func addClusterMetricsRoutes(a clusterMetricsFetcher, ws *restful.WebService) {
 			Param(ws.QueryParameter("labels", "A comma-separated list of key:values pairs to use to search for a labeled metric").DataType("string")).
 			Writes(types.MetricResult{}))
 
-		// The /namespaces/{namespace-name}/statefulsets/{rc-name}/pods/{pod-name}/containers/{container-name}/metrics endpoint
+		// The /namespaces/{namespace-name}/statefulsets/{ss-name}/pods/{pod-name}/containers endpoint
+		// returns a list of all available containers for a pod's containers.
+		ws.Route(ws.GET("/namespaces/{namespace-name}/statefulsets/{ss-name}/pods/{pod-name}/containers").
+			To(metrics.InstrumentRouteFunc("podContainerList", a.podContainerList)).
+			Doc("Get a list of containers for a Pod entity ").
+			Operation("podContainerList").
+			Param(ws.PathParameter("namespace-name", "The name of the namespace to lookup").DataType("string")).
+			Param(ws.PathParameter("ss-name", "The name of the statefulset to lookup").DataType("string")).
+			Param(ws.PathParameter("pod-name", "The name of the pod to lookup").DataType("string")))
+
+		// The /namespaces/{namespace-name}/statefulsets/{ss-name}/pods/{pod-name}/containers/{container-name}/metrics endpoint
 		// returns a list of all available metrics for a statefulset Container entity.
 		ws.Route(ws.GET("/namespaces/{namespace-name}/statefulsets/{ss-name}/pods/{pod-name}/containers/{container-name}/metrics").
 			To(metrics.InstrumentRouteFunc("availablePodContainerMetrics", a.availablePodContainerMetrics)).
@@ -375,6 +402,108 @@ func addClusterMetricsRoutes(a clusterMetricsFetcher, ws *restful.WebService) {
 			Param(ws.QueryParameter("labels", "A comma-separated list of key:values pairs to use to search for a labeled metric").DataType("string")).
 			Writes(types.MetricResult{}))
 		// Added by haoyuan
+
+		// Added by zhuzhen
+		// The /namespaces/{namespace-name}/jobs/ endpoint returns a list of all jobs.
+		ws.Route(ws.GET("/namespaces/{namespace-name}/jobs/").
+			To(metrics.InstrumentRouteFunc("namespaceJobList", a.namespaceJobList)).
+			Doc("Get a list of jobs from the given namespace that have some metrics").
+			Operation("namespaceJobList").
+			Param(ws.PathParameter("namespace-name", "The name of the namespace to lookup").DataType("string")))
+
+		// The /namespaces/{namespace-name}/jobs/{job-name}/metrics endpoint returns a list of all available metrics for a job entity.
+		ws.Route(ws.GET("/namespaces/{namespace-name}/jobs/{job-name}/metrics").
+			To(metrics.InstrumentRouteFunc("availableJobMetrics", a.availableJobMetrics)).
+			Doc("Get a list of all available metrics for a Job entity").
+			Operation("availableJobMetrics").
+			Param(ws.PathParameter("namespace-name", "The name of the namespace to lookup").DataType("string")).
+			Param(ws.PathParameter("job-name", "The name of the job to lookup").DataType("string")))
+
+		// The /namespaces/{namespace-name}/jobs/{job-name}/metrics/{metric-name} endpoint exposes
+		// an aggregated metric for a job entity of the model.
+		ws.Route(ws.GET("/namespaces/{namespace-name}/jobs/{job-name}/metrics/{metric-name:*}").
+			To(metrics.InstrumentRouteFunc("jobMetrics", a.jobMetrics)).
+			Doc("Export an aggregated job-level metric").
+			Operation("jobMetrics").
+			Param(ws.PathParameter("namespace-name", "The name of the namespace to lookup").DataType("string")).
+			Param(ws.PathParameter("job-name", "The name of the job to lookup").DataType("string")).
+			Param(ws.PathParameter("metric-name", "The name of the requested metric").DataType("string")).
+			Param(ws.QueryParameter("start", "Start time for requested metrics").DataType("string")).
+			Param(ws.QueryParameter("end", "End time for requested metric").DataType("string")).
+			Param(ws.QueryParameter("labels", "A comma-separated list of key:values pairs to use to search for a labeled metric").DataType("string")).
+			Writes(types.MetricResult{}))
+
+		// The /namespaces/{namespace-name}/jobs/{job-name}/pods endpoint
+		// returns a list of all available pods for a job entity.
+		ws.Route(ws.GET("/namespaces/{namespace-name}/jobs/{job-name}/pods").
+			To(metrics.InstrumentRouteFunc("namespaceJobPodList", a.namespaceJobPodList)).
+			Doc("Get a list of pods from the given job that have some metrics").
+			Operation("namespaceJobPodList").
+			Param(ws.PathParameter("namespace-name", "The name of the namespace to lookup").DataType("string")).
+			Param(ws.PathParameter("job-name", "The name of the job to lookup").DataType("string")))
+
+		// The /namespaces/{namespace-name}/jobs/{job-name}/pods/{pod-name}/metrics endpoint
+		// returns a list of all available metrics for a job's Pod entity.
+		ws.Route(ws.GET("/namespaces/{namespace-name}/jobs/{job-name}/pods/{pod-name}/metrics").
+			To(metrics.InstrumentRouteFunc("availableJobPodMetrics", a.availablePodMetrics)).
+			Doc("Get a list of all available metrics for a job's Pod entity").
+			Operation("availableJobPodMetrics").
+			Param(ws.PathParameter("namespace-name", "The name of the namespace to lookup").DataType("string")).
+			Param(ws.PathParameter("job-name", "The name of the job to lookup").DataType("string")).
+			Param(ws.PathParameter("pod-name", "The name of the pod to use").DataType("string")))
+
+		// The /namespaces/{namespace-name}/jobs/{job-name}/pods/{pod-name}/metrics/{metric-name} endpoint exposes
+		// an aggregated metric for a Pod entity of the model.
+		ws.Route(ws.GET("/namespaces/{namespace-name}/jobs/{job-name}/pods/{pod-name}/metrics/{metric-name:*}").
+			To(metrics.InstrumentRouteFunc("jobPodMetrics", a.podMetrics)).
+			Doc("Export an aggregated pod-level metric").
+			Operation("podMetrics").
+			Param(ws.PathParameter("namespace-name", "The name of the namespace to lookup").DataType("string")).
+			Param(ws.PathParameter("job-name", "The name of the job to lookup").DataType("string")).
+			Param(ws.PathParameter("pod-name", "The name of the pod to lookup").DataType("string")).
+			Param(ws.PathParameter("metric-name", "The name of the requested metric").DataType("string")).
+			Param(ws.QueryParameter("start", "Start time for requested metrics").DataType("string")).
+			Param(ws.QueryParameter("end", "End time for requested metric").DataType("string")).
+			Param(ws.QueryParameter("labels", "A comma-separated list of key:values pairs to use to search for a labeled metric").DataType("string")).
+			Writes(types.MetricResult{}))
+
+		// The /namespaces/{namespace-name}/jobs/{job-name}/pods/{pod-name}/containers
+		// returns a list of all available containers for a job's containers.
+		ws.Route(ws.GET("/namespaces/{namespace-name}/jobs/{job-name}/pods/{pod-name}/containers").
+			To(metrics.InstrumentRouteFunc("podContainerList", a.podContainerList)).
+			Doc("Get a list of containers for a Pod entity ").
+			Operation("podContainerList").
+			Param(ws.PathParameter("namespace-name", "The name of the namespace to lookup").DataType("string")).
+			Param(ws.PathParameter("job-name", "The name of the job to lookup").DataType("string")).
+			Param(ws.PathParameter("pod-name", "The name of the pod to lookup").DataType("string")))
+
+		// The /namespaces/{namespace-name}/jobs/{job-name}/pods/{pod-name}/containers/{container-name}/metrics endpoint
+		// returns a list of all available metrics for a job Container entity.
+		ws.Route(ws.GET("/namespaces/{namespace-name}/jobs/{job-name}/pods/{pod-name}/containers/{container-name}/metrics").
+			To(metrics.InstrumentRouteFunc("availableContainerMetrics", a.availablePodContainerMetrics)).
+			Doc("Get a list of all available metrics for a rc's Pod entity").
+			Operation("availableRcPodContainerMetrics").
+			Param(ws.PathParameter("namespace-name", "The name of the namespace to lookup").DataType("string")).
+			Param(ws.PathParameter("job-name", "The name of the job to lookup").DataType("string")).
+			Param(ws.PathParameter("pod-name", "The name of the pod to lookup").DataType("string")).
+			Param(ws.PathParameter("container-name", "The name of the namespace to use").DataType("string")))
+
+		// The /namespaces/{namespace-name}/jobs/{job-name}/containers/{container-name}/metrics/{metric-name} endpoint exposes
+		// a metric for a Container entity of the model.
+		ws.Route(ws.GET("/namespaces/{namespace-name}/jobs/{job-name}/pods/{pod-name}/containers/{container-name}/metrics/{metric-name:*}").
+			To(metrics.InstrumentRouteFunc("jobPodContainerMetrics", a.podContainerMetrics)).
+			Doc("Export an aggregated metric for a job's pod Container").
+			Operation("jobPodContainerMetrics").
+			Param(ws.PathParameter("namespace-name", "The name of the namespace to use").DataType("string")).
+			Param(ws.PathParameter("job-name", "The name of the job to use").DataType("string")).
+			Param(ws.PathParameter("pod-name", "The name of the pod to use").DataType("string")).
+			Param(ws.PathParameter("container-name", "The name of the namespace to use").DataType("string")).
+			Param(ws.PathParameter("metric-name", "The name of the requested metric").DataType("string")).
+			Param(ws.QueryParameter("start", "Start time for requested metrics").DataType("string")).
+			Param(ws.QueryParameter("end", "End time for requested metric").DataType("string")).
+			Param(ws.QueryParameter("labels", "A comma-separated list of key:values pairs to use to search for a labeled metric").DataType("string")).
+			Writes(types.MetricResult{}))
+		// Added by zhuzhen
 
 		// The /namespaces/{namespace-name}/pods/{pod-name}/containers/metrics/{container-name}/metrics endpoint
 		// returns a list of all available metrics for a Pod Container entity.
@@ -578,6 +707,32 @@ func (a *Api) namespaceStatefulsetPodList(request *restful.Request, response *re
 }
 
 // Added by haoyuan
+
+// Added by zhuzhen
+func (a *Api) namespaceJobList(request *restful.Request, response *restful.Response) {
+	response.WriteEntity(a.metricSink.GetJobsFromNamespace(request.PathParameter("namespace-name")))
+}
+
+// availableMetrics returns a list of available job metric names.
+func (a *Api) availableJobMetrics(request *restful.Request, response *restful.Response) {
+	a.processMetricNamesRequest(
+		core.JobKey(request.PathParameter("namespace-name"),
+			request.PathParameter("job-name")), response)
+}
+
+// jobMetrics returns a metric timeseries for a metric of the Job entity.
+func (a *Api) jobMetrics(request *restful.Request, response *restful.Response) {
+	a.processMetricRequest(
+		core.JobKey(request.PathParameter("namespace-name"),
+			request.PathParameter("job-name")),
+		request, response)
+}
+
+func (a *Api) namespaceJobPodList(request *restful.Request, response *restful.Response) {
+	response.WriteEntity(a.metricSink.GetPodsForJobFromNamespace(request.PathParameter("namespace-name"), request.PathParameter("job-name")))
+}
+
+// Added by zhuzhen
 
 func (a *Api) allKeys(request *restful.Request, response *restful.Response) {
 	response.WriteEntity(a.metricSink.GetMetricSetKeys())

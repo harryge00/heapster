@@ -37,6 +37,13 @@ func SsKey(namespace, ssName string) string {
 
 // Added by haoyuan
 
+// Added by zhuzhen
+func JobKey(namespace, rcName string) string {
+	return fmt.Sprintf("namespace:%s/job:%s", namespace, rcName)
+}
+
+// Added by zhuzhen
+
 func PodContainerKey(namespace, podName, containerName string) string {
 	return fmt.Sprintf("namespace:%s/pod:%s/container:%s", namespace, podName, containerName)
 }

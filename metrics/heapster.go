@@ -39,9 +39,11 @@ import (
 	"k8s.io/apiserver/pkg/util/logs"
 	kube_client "k8s.io/client-go/kubernetes"
 	betalisters "k8s.io/client-go/listers/apps/v1beta1"
+	batchlisters "k8s.io/client-go/listers/batch/v1"
 	v1listers "k8s.io/client-go/listers/core/v1"
 	kube_api "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/apps/v1beta1"
+	"k8s.io/client-go/pkg/apis/batch/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/heapster/common/flags"
 	kube_config "k8s.io/heapster/common/kubernetes"
@@ -90,8 +92,8 @@ func main() {
 	sourceManager := createSourceManagerOrDie(opt.Sources)
 	sinkManager, metricSink, historicalSource := createAndInitSinksOrDie(opt.Sinks, opt.HistoricalSource, opt.SinkExportDataTimeout, opt.DisableMetricSink)
 
-	podLister, nodeLister, rcLister, ssLister := getListersOrDie(kubernetesUrl)
-	dataProcessors := createDataProcessorsOrDie(kubernetesUrl, podLister, rcLister, ssLister, labelCopier)
+	podLister, nodeLister, rcLister, ssLister, jobLister := getListersOrDie(kubernetesUrl)
+	dataProcessors := createDataProcessorsOrDie(kubernetesUrl, podLister, rcLister, ssLister, jobLister, labelCopier)
 
 	man, err := manager.NewManager(sourceManager, dataProcessors, sinkManager,
 		opt.MetricResolution, manager.DefaultScrapeOffset, manager.DefaultMaxParallelism)
@@ -210,7 +212,7 @@ func createAndInitSinksOrDie(sinkAddresses flags.Uris, historicalSource string, 
 	return sinkManager, metricSink, histSource
 }
 
-func getListersOrDie(kubernetesUrl *url.URL) (v1listers.PodLister, v1listers.NodeLister, v1listers.ReplicationControllerLister, betalisters.StatefulSetLister) {
+func getListersOrDie(kubernetesUrl *url.URL) (v1listers.PodLister, v1listers.NodeLister, v1listers.ReplicationControllerLister, betalisters.StatefulSetLister, batchlisters.JobLister) {
 	kubeClient := createKubeClientOrDie(kubernetesUrl)
 
 	podLister, err := getPodLister(kubeClient)
@@ -229,12 +231,19 @@ func getListersOrDie(kubernetesUrl *url.URL) (v1listers.PodLister, v1listers.Nod
 	}
 	// Added by haoyuan
 
+	// Added by zhuzhen
+	jobLister, err := getJobLister(kubeClient)
+	if err != nil {
+		glog.Fatalf("Failed to create ssLister: %v", err)
+	}
+	//Added by zhuzhen
+
 	nodeLister, _, err := util.GetNodeLister(kubeClient)
 	if err != nil {
 		glog.Fatalf("Failed to create nodeLister: %v", err)
 	}
 
-	return podLister, nodeLister, rcLister, ssLister
+	return podLister, nodeLister, rcLister, ssLister, jobLister
 }
 
 func createKubeClientOrDie(kubernetesUrl *url.URL) *kube_client.Clientset {
@@ -245,7 +254,7 @@ func createKubeClientOrDie(kubernetesUrl *url.URL) *kube_client.Clientset {
 	return kube_client.NewForConfigOrDie(kubeConfig)
 }
 
-func createDataProcessorsOrDie(kubernetesUrl *url.URL, podLister v1listers.PodLister, rcLister v1listers.ReplicationControllerLister, ssLister betalisters.StatefulSetLister, labelCopier *util.LabelCopier) []core.DataProcessor {
+func createDataProcessorsOrDie(kubernetesUrl *url.URL, podLister v1listers.PodLister, rcLister v1listers.ReplicationControllerLister, ssLister betalisters.StatefulSetLister, jobLister batchlisters.JobLister, labelCopier *util.LabelCopier) []core.DataProcessor {
 	dataProcessors := []core.DataProcessor{
 		// Convert cumulative to rate
 		processors.NewRateCalculator(core.RateMetricsMapping),
@@ -277,6 +286,14 @@ func createDataProcessorsOrDie(kubernetesUrl *url.URL, podLister v1listers.PodLi
 	dataProcessors = append(dataProcessors, ssBasedEnricher)
 	// Added by haoyuan
 
+	//Added by zhuzhen
+	jobBasedEnricher, err := processors.NewJobBasedEnricher(jobLister, podLister)
+	if err != nil {
+		glog.Fatalf("Failed to create JobBasedEnricher: %v", err)
+	}
+	dataProcessors = append(dataProcessors, jobBasedEnricher)
+	//Added by zhuzhen
+
 	// aggregators
 	metricsToAggregate := []string{
 		core.MetricCpuUsageRate.Name,
@@ -298,6 +315,7 @@ func createDataProcessorsOrDie(kubernetesUrl *url.URL, podLister v1listers.PodLi
 		processors.NewPodAggregator(),
 		processors.NewRcAggregator(),
 		processors.NewSsAggregator(),
+		processors.NewJobAggregator(),
 		&processors.NamespaceAggregator{
 			MetricsToAggregate: metricsToAggregate,
 		},
@@ -377,6 +395,16 @@ func getSsLister(kubeClient *kube_client.Clientset) (betalisters.StatefulSetList
 	reflector := cache.NewReflector(lw, &v1beta1.StatefulSet{}, store, time.Hour)
 	reflector.Run()
 	return ssLister, nil
+}
+
+func getJobLister(kubeClient *kube_client.Clientset) (batchlisters.JobLister, error) {
+	//lw := cache.NewListWatchFromClient(kubeClient.AppsV1beta1().RESTClient(), "job", kube_api.NamespaceAll, fields.Everything())
+	lw := cache.NewListWatchFromClient(kubeClient.BatchV1().RESTClient(), "jobs", kube_api.NamespaceAll, fields.Everything())
+	store := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	jobLister := batchlisters.NewJobLister(store)
+	reflector := cache.NewReflector(lw, &v1.Job{}, store, time.Hour)
+	reflector.Run()
+	return jobLister, nil
 }
 
 func validateFlags(opt *options.HeapsterRunOptions) error {

@@ -36,6 +36,10 @@ var (
 	MetricSetTypeSs = "ss"
 	// Added by Luobingli
 
+	// Added by zhuzhen
+	MetricSetTypeJob = "job"
+	// Added by zhuzhen
+
 	LabelPodId = LabelDescriptor{
 		Key:         "pod_id",
 		Description: "The unique ID of the pod",
@@ -151,6 +155,25 @@ var (
 		Description: "The UID of namespace of the ss",
 	}
 	// Added by haoyuan
+
+	// Added by zhuzhen
+	LabelJobId = LabelDescriptor{
+		Key:         "job_id",
+		Description: "The unique ID of the job",
+	}
+	LabelJobName = LabelDescriptor{
+		Key:         "job_name",
+		Description: "The name of the job",
+	}
+	LabelJobNamespace = LabelDescriptor{
+		Key:         "job_namespace",
+		Description: "The namespace of the job",
+	}
+	LabelJobNamespaceUID = LabelDescriptor{
+		Key:         "job_namespace_id",
+		Description: "The UID of namespace of the job",
+	}
+	// Added by zhuzhen
 )
 
 type LabelDescriptor struct {

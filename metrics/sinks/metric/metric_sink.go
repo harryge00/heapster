@@ -364,6 +364,32 @@ func (this *MetricSink) GetPodsForStatefulsetFromNamespace(namespace, ss string)
 
 // Added by haoyuan
 
+// Added by zhuzhen
+func (this *MetricSink) GetJobsFromNamespace(namespace string) []string {
+	return this.getAllNames(
+		func(ms *core.MetricSet) bool {
+			return ms.Labels[core.LabelMetricSetType.Key] == core.MetricSetTypeJob &&
+				ms.Labels[core.LabelNamespaceName.Key] == namespace
+		},
+		func(key string, ms *core.MetricSet) string {
+			return ms.Labels[core.LabelJobName.Key]
+		})
+}
+
+func (this *MetricSink) GetPodsForJobFromNamespace(namespace, job string) []string {
+	return this.getAllNames(
+		func(ms *core.MetricSet) bool {
+			return ms.Labels[core.LabelMetricSetType.Key] == core.MetricSetTypePod &&
+				ms.Labels[core.LabelNamespaceName.Key] == namespace &&
+				ms.Labels[core.LabelJobName.Key] == job
+		},
+		func(key string, ms *core.MetricSet) string {
+			return ms.Labels[core.LabelPodName.Key]
+		})
+}
+
+// Added by zhuzhen
+
 func popOld(storage []*core.DataBatch, cutoffTime time.Time) []*core.DataBatch {
 	result := make([]*core.DataBatch, 0)
 	for _, batch := range storage {
